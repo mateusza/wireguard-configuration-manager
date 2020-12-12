@@ -192,12 +192,13 @@ __peer_conf_dns_ips () {
 }
 
 __peer_conf_privatekey () {
-    local iface peer privkey line
+    local iface peer privkey line filename
     iface="$1"
     peer="$2"
     peer_dirname="$(__peer_dirname "$iface" "$peer")"
-    if [[ -e "${peer_dirname}/private.key" ]]; then
-        read -r privkey < "${peer_dirname}/private.key"
+    filename="${peer_dirname}/private.key"
+    if [[ -e "${filename}" ]]; then
+        read -r privkey < "${filename}"
     else
         privkey="# PRIVATE KEY HERE"
     fi
@@ -205,19 +206,30 @@ __peer_conf_privatekey () {
 }
 
 __peer_conf_publickey () {
-    local iface peer pubkey line
+    local iface peer pubkey privkey filename
     iface="$1"
     peer="$2"
-    read -r pubkey < "$(__peer_dirname "$iface" "$peer")/public.key"
+    filename="$(__peer_dirname "$iface" "$peer")/public.key"
+    if [[ -e "$filename" ]]; then
+        read -r pubkey < "${filename}"
+    else
+        privkey="$(__peer_conf_privatekey)"
+        if [[ "x${privkey:0:1}" == "x#" ]]; then
+            pubkey="# PUBLIC KEY HERE"
+        else
+            pubkey="$(echo "$privkey" | wg pubkey)"
+        fi
+    fi
     printf "%s\n" "$pubkey"
 }
 
 __peer_conf () {
-    local iface peer
+    local iface peer publickey
     iface="$1"
     peer="$2"
+    publickey="$(__peer_conf_publickey "$iface" "$peer")"
     printf "[Peer] # %s\n" "$peer"
-    printf "PublicKey = %s\n" "$(__peer_conf_publickey "$iface" "$peer")"
+    printf "%sPublicKey = %s\n" "$([[ "x${publickey:0:1}" == "x#" ]] && echo "# ")" "${publickey}"
     printf "AllowedIPs = %s\n" "$(__peer_conf_allowedips "$iface" "$peer")"
 }
 
