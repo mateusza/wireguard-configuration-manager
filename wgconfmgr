@@ -341,16 +341,26 @@ __iface_conf_endpoint () {
 }
 
 __iface_conf_listenport () {
-    local iface lport
+    local iface lport filename
     iface="$1"
-    read -r lport < "$(__iface_dirname "$iface" )/port.conf"
+    filename="$(__iface_dirname "$iface" )/port.conf"
+    if [[ -e "$filename" ]]; then
+        read -r lport < "$filename"
+    else
+        lport="51820"
+    fi
     printf "%d\n" "$lport"
 }
 
 __iface_conf_fwmark () {
-    local iface fwmark
+    local iface fwmark filename
     iface="$1"
-    read -r fwmark < "$(__iface_dirname "$iface" )/fwmark.conf"
+    filename="$(__iface_dirname "$iface" )/fwmark.conf"
+    if [[ -e "$filename" ]]; then
+        read -r fwmark < "$filename"
+    else
+        fwmark="0xca6c"
+    fi
     printf "%s\n" "$fwmark"
 }
 
