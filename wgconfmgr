@@ -45,13 +45,20 @@ _show_conf () {
     fi
 }
 
+__peer_dirname () {
+    local iface peer
+    iface="$1"
+    peer="$2"
+    printf "%s/%s.conf.d/peers.d/%s\n" "$WG_DIR" "$iface" "$peer"
+}
+
 __peer_conf_address () {
     local iface peer ips line
     iface="$1"
     peer="$2"
     while read -r line; do
         printf "%s\n" "$line"
-    done < "${WG_DIR}/${iface}.conf.d/peers.d/${peer}/ip.conf"
+    done < "$(__peer_dirname "$iface" "$peer")/ip.conf"
 }
 
 __peer_conf_networks () {
@@ -59,10 +66,10 @@ __peer_conf_networks () {
     iface="$1"
     peer="$2"
     ips=""
-    [[ -e "${WG_DIR}/${iface}.conf.d/peers.d/${peer}/networks.conf" ]] || return
+    [[ -e "$(__peer_dirname "$iface" "$peer")/networks.conf" ]] || return
     while read -r line; do
         printf "%s\n" "$line"
-    done < "${WG_DIR}/${iface}.conf.d/peers.d/${peer}/networks.conf"
+    done < "$(__peer_dirname "$iface" "$peer")/networks.conf"
 }
 
 __peer_conf_allowedips () {
@@ -97,7 +104,7 @@ __peer_conf_publickey () {
     while read -r line; do
         printf -v pkey "%s" "$line"
         break
-    done < "${WG_DIR}/${iface}.conf.d/peers.d/${peer}/public.key"
+    done < "$(__peer_dirname "$iface" "$peer")/public.key"
     printf "%s\n" "$pkey"
 }
 
