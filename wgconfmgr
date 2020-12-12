@@ -45,20 +45,28 @@ _show_conf () {
     fi
 }
 
+__conf_address_file() {
+    local filename
+    filename="$1"
+    while read -r line; do
+        [[ -z "$line" ]] && continue
+        [[ "x${line:0:1}" == "x#" ]] && continue
+        printf "%s\n" "$line"
+    done < "$filename"
+}
+
 __peer_dirname () {
     local iface peer
     iface="$1"
     peer="$2"
-    printf "%s/%s.conf.d/peers.d/%s\n" "$WG_DIR" "$iface" "$peer"
+    printf "%s/peers.d/%s\n" "$(__iface_dirname "$iface")" "$peer"
 }
 
 __peer_conf_address () {
     local iface peer ips line
     iface="$1"
     peer="$2"
-    while read -r line; do
-        printf "%s\n" "$line"
-    done < "$(__peer_dirname "$iface" "$peer")/ip.conf"
+    __conf_address_file "$( __peer_dirname "$iface" "$peer" )/ip.conf"
 }
 
 __peer_conf_networks () {
@@ -67,9 +75,7 @@ __peer_conf_networks () {
     peer="$2"
     ips=""
     [[ -e "$(__peer_dirname "$iface" "$peer")/networks.conf" ]] || return
-    while read -r line; do
-        printf "%s\n" "$line"
-    done < "$(__peer_dirname "$iface" "$peer")/networks.conf"
+    __conf_address_file "$(__peer_dirname "$iface" "$peer")/networks.conf"
 }
 
 __peer_conf_allowedips () {
@@ -101,10 +107,7 @@ __peer_conf_publickey () {
     iface="$1"
     peer="$2"
     pkey=""
-    while read -r line; do
-        printf -v pkey "%s" "$line"
-        break
-    done < "$(__peer_dirname "$iface" "$peer")/public.key"
+    read -r pkey < "$(__peer_dirname "$iface" "$peer")/public.key"
     printf "%s\n" "$pkey"
 }
 
@@ -129,9 +132,21 @@ __peer_remoteconf () {
     printf "\n"
     printf "[Peer] # %s\n" "$HOSTNAME" # FIXME
     printf "PublicKey = %s\n" "$( __iface_conf_publickey "$iface" )"
-    printf "AllowedIPs = 10.0.0.0/24, fdef::/56\n" #TODO
-    printf "Endpoint = %s:%d\n" "example.com" "$( __iface_conf_listenport "$iface" )" #TODO
+    printf "AllowedIPs = %s\n" "$(__iface_conf_allowedips "$iface" )"
+    printf "# AllowedIPs = 0.0.0.0/0, ::/0\n" #TODO
+    printf "Endpoint = %s:%d\n" "$(__iface_conf_endpoint "$iface")" "$(__iface_conf_listenport "$iface")"
     printf "PersistentKeepalive = 21\n"
+    printf "\n"
+    printf "# Networks to use:\n"
+    for n in $(__peer_conf_networks "$iface" "$peer"); do
+        printf "# - %s\n" "$n"
+    done
+}
+
+__iface_dirname () {
+    local iface
+    iface="$1"
+    printf "%s/%s.conf.d\n" "$WG_DIR" "$iface"
 }
 
 __iface_count_peers () {
@@ -159,20 +174,50 @@ __iface_conf_local () {
     iface="$1"
     printf "Address = %s\n" "$( __iface_conf_address "$iface" )"
     printf "ListenPort = %d\n" "$( __iface_conf_listenport "$iface" )"
-    printf "FwMark = %d\n" "$( __iface_conf_fwmark "$iface" )"
+    printf "FwMark = %s\n" "$( __iface_conf_fwmark "$iface" )"
     printf "PrivateKey = %s\n" "$( __iface_conf_privatekey "$iface" )"
     printf "# PublicKey = %s\n" "$( __iface_conf_publickey "$iface" )"
+    printf "# Local networks:\n"
+    for net in $(__iface_conf_networks "$iface" ); do
+        printf "# - %s\n" "$net"
+    done
 }
 
 __iface_conf_address () {
-    local iface
+    local iface iface_dirname
     iface="$1"
+    iface_dirname="$(__iface_dirname "$iface")"
     ips=""
     while read -r line; do
         printf -v ips "%s, %s" "$ips" "$line"
-    done < "${WG_DIR}/${iface}.conf.d/ip.conf"
+    done < "${iface_dirname}/ip.conf"
     ips="${ips##, }"
     printf "%s\n" "$ips"
+}
+
+__iface_conf_networks () {
+    local iface iface_dirname networks network
+    iface="$1"
+    iface_dirname="$(__iface_dirname "$iface")"
+    __conf_address_file "${iface_dirname}/networks.conf"
+}
+
+__iface_conf_allowedips () {
+    local iface ips ip
+    iface="$1"
+    ips=""
+    for ip in $( __iface_conf_networks "$iface" ); do
+        printf -v ips "%s, %s" "$ips" "$ip"
+    done
+    ips="${ips##, }"
+    printf "%s\n" "$ips"
+}
+
+__iface_conf_endpoint () {
+    local iface endpoint
+    iface="$1"
+    read -r endpoint < "$(__iface_dirname "$iface" )/endpoint.conf"
+    printf "%s\n" "$endpoint"
 }
 
 __iface_conf_listenport () {
@@ -187,23 +232,21 @@ __iface_conf_privatekey () {
     local iface privkey line
     iface="$1"
     privkey=""
-    while read -r line; do
-        printf -v privkey "%s" "$line"
-        break
-    done < "${WG_DIR}/${iface}.conf.d/private.key"
+    read -r privkey < "$(__iface_dirname "$iface" )/private.key"
     printf "%s\n" "$privkey"
 }
 
 __iface_conf_publickey () {
-    local iface privkey line
+    local iface iface_dirname privkey line
     iface="$1"
-    if [[ -e "${WG_DIR}/${iface}.conf.d/public.key" ]]; then
+    iface_dirname="$(__iface_dirname "$iface")"
+    if [[ -e "${iface_dirname}/public.key" ]]; then
         while read -r line; do
             printf "%s\n" "$line"
             break
-        done < "${WG_DIR}/${iface}.conf.d/public.key"
+        done < "${iface_dirname}/public.key"
     else
-        wg pubkey < "${WG_DIR}/${iface}.conf.d/private.key"
+        wg pubkey < "${iface_dirname}/private.key"
     fi
 }
 
@@ -229,13 +272,14 @@ __list_interfaces () {
 }
 
 __list_peers () {
-    local iface peer_dirname peer
-
+    local iface iface_dirname peer_dirname peer
     iface="$1"
-    for peer_dirname in "$WG_DIR"/"$iface".conf.d/peers.d/*; do
+    iface_dirname="$(__iface_dirname "$iface" )"
+
+    for peer_dirname in "${iface_dirname}"/peers.d/*; do
         [[ -d "$peer_dirname" ]] || break
         peer="${peer_dirname}"
-        peer="${peer##${WG_DIR}/${iface}.conf.d/peers.d/}"
+        peer="${peer##${iface_dirname}/peers.d/}"
         printf "%s\n" "$peer"
     done
 }
