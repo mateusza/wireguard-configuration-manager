@@ -213,7 +213,7 @@ __peer_conf_publickey () {
     if [[ -e "$filename" ]]; then
         read -r pubkey < "${filename}"
     else
-        privkey="$(__peer_conf_privatekey)"
+        privkey="$(__peer_conf_privatekey "$iface" "$peer")"
         if [[ "x${privkey:0:1}" == "x#" ]]; then
             pubkey="# PUBLIC KEY HERE"
         else
