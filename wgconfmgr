@@ -457,10 +457,17 @@ __iface_conf_networks () {
 }
 
 __iface_conf_dns_ips () {
-    local iface iface_dirname
+    local iface iface_dirname dns defaults
+    defaults="8.8.8.8 1.1.1.1" #FIXME
     iface="$1"
     iface_dirname="$(__iface_dirname "$iface")"
-    __conf_address_file "${iface_dirname}/dns.conf"
+    if [[ -e "${iface_dirname}/dns.conf" ]]; then
+        __conf_address_file "${iface_dirname}/dns.conf"
+    else
+        for dns in $defaults; do
+            printf "%s\n" "$dns"
+        done
+    fi
 }
 
 __iface_conf_allowedips () {
