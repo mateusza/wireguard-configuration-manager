@@ -97,7 +97,7 @@ _show_qr () {
     fi
     if __peer_exists "$iface" "$peer"; then
         printf "[ QR CODE %s %s ]\n" "$iface" "$peer"
-        __peer_remoteconf "$iface" "$peer" | sed -ne 's/#.*//;/^.\+$/p' | qrencode -t UTF8
+        __peer_remoteconf_striped "$iface" "$peer" | qrencode -t UTF8
     else
         printf "Peer not found: %s\n" "$peer"
     fi
@@ -341,6 +341,13 @@ __peer_conf () {
     printf "[Peer] # %s\n" "$peer"
     printf "%sPublicKey = %s\n" "$([[ "x${publickey:0:1}" == "x#" ]] && echo "# ")" "${publickey}"
     printf "AllowedIPs = %s\n" "$(__peer_conf_allowedips "$iface" "$peer")"
+}
+
+__peer_remoteconf_striped () {
+    local iface peer
+    iface="$1"
+    peer="$2"
+    __peer_remoteconf "$iface" "$peer" | sed -ne 's/#.*//;/^.\+$/p'
 }
 
 __peer_remoteconf () {
