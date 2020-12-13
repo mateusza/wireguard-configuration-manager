@@ -148,7 +148,7 @@ _new_iface () {
     mkdir "${iface_dirname}/peers.d"
     for conffile in "$iface_dirname/"{ip,networks,endpoint}.conf; do
         if ! [[ -e "$conffile" ]]; then
-            > "$conffile"
+            true > "$conffile"
         fi
     done
     umask 077
@@ -175,7 +175,7 @@ _new_peer () {
     mkdir "$peer_dirname"
     for conffile in "$peer_dirname/"{ip,networks}.conf; do
         if ! [[ -e "$conffile" ]]; then
-            > "$conffile"
+            true > "$conffile"
         fi
     done
     umask 077
