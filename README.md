@@ -18,12 +18,20 @@ Adding new interface or peer creates required directories and files:
 * All interfaces: `wgconfmgr write-conf`
 * Specific interface: `wgconfmgr write-conf <IFACE>`
 
-Interface configuration is saved to `/etc/wireguard/<IFACE>.conf.d/interface.conf`. This can be later copied, rename or symlinked as `/etc/wireguard/<IFACE>.conf`.
+Interface configuration is saved to `/etc/wireguard/<IFACE>.conf.d/interface.conf`. This can be later copied, renamed or symlinked as `/etc/wireguard/<IFACE>.conf`.
 
 ### `qr` - display QR code for quick peer configuration
 * `wgconfmgr qr <IFACE> <PEER>`
 
-(`qrencode` tools is used. UTF-8 enabled terminal is required.)
+Note:
+1. Peer's `private.key` is required to generated QR code.
+2. `qrencode` tool is used (see: [libqrencode](https://fukuchi.org/works/qrencode/))
+3. UTF-8 enabled terminal is required to display QR code.
+
+Tested with:
+1. [Wireguard for iOS](https://apps.apple.com/us/app/wireguard/id1441195209)
+2. [Wireguard for Android](https://play.google.com/store/apps/details?id=com.wireguard.android)
+3. [TunSafe VPN for Android](https://play.google.com/store/apps/details?id=com.tunsafe.app)
 
 ### `ping` - test connection
 * `wgconfmgr ping` - ping all peers on all interfaces
@@ -31,7 +39,6 @@ Interface configuration is saved to `/etc/wireguard/<IFACE>.conf.d/interface.con
 * `wgconfmgr ping <IFACE> <PEER>` - ping single peer on specific interface (all addresses)
 
 ## Configuration files
-
 ### Interface
 Interfaces' configuration directories are named `/etc/wireguard/<IFACE>.conf.d`.
 
@@ -77,14 +84,14 @@ SaveConfig = false
 
 Peers' configuration directories are named `/etc/wireguard/<IFACE>.conf.d/peers.d/<PEER>`
 
-#### `private.key` (optional)
-Private key. Optional.
+#### `private.key` (optional/required)
+Private key.
 
 If missing, a placeholder will be printed in peer's config file.
 
 Only required for full configuration file generation on a server, including QR code generation.
 
-#### `public.key` (conditionally optional)
+#### `public.key` (optional/required)
 Public key. Optional, if `private.key` is provided.
 
 **At least one of `private.key` and `public.key` must be present.**
@@ -110,6 +117,6 @@ The project is licensed under MIT License.
 
 ## See also
 * [The Wireguard](https://www.wireguard.com/)
-* [Wireguard Vanity Address](https://github.com/warner/wireguard-vanity-address) Tool to generate keypairs with easily recognizable public keys, like `c0ol/adDr/eM/ui8om59pAvR1KgLuhpOV5KC9kWiGGo=`
+* [Wireguard Vanity Address](https://github.com/warner/wireguard-vanity-address) Tool to generate keypairs with easily recognizable public key prefixes, like `c0ol/adDr/eM/ui8om59pAvR1KgLuhpOV5KC9kWiGGo=`
 * [QR Encode](https://fukuchi.org/works/qrencode/) Tool to generate QR codes from command line, able to display them on text console using UTF-8 block characters. Simplifies provisioning of mobile devices.
 
