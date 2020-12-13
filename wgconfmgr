@@ -414,22 +414,27 @@ __iface_conf () {
     printf "[Interface] # %s\n" "$iface"
     __iface_conf_local "$iface"
     printf "\n"
+    printf "# Peers:\n"
     __iface_conf_peers "$iface"
     printf "# EOF\n"
 }
 
 __iface_conf_local () {
-    local iface net
+    local iface net networks
     iface="$1"
     printf "Address = %s\n" "$(__iface_conf_address "$iface")"
     printf "ListenPort = %d\n" "$(__iface_conf_listenport "$iface")"
     printf "FwMark = %s\n" "$(__iface_conf_fwmark "$iface")"
     printf "PrivateKey = %s\n" "$(__iface_conf_privatekey "$iface")"
     printf "# PublicKey = %s\n" "$(__iface_conf_publickey "$iface")"
-    printf "# Local networks:\n"
-    for net in $(__iface_conf_networks "$iface" ); do
-        printf "# - %s\n" "$net"
-    done
+    networks="$(__iface_conf_networks "$iface" )"
+    if [[ -n "$networks" ]]; then
+        printf "# Local networks:\n"
+        for net in $networks; do
+            printf "# - %s\n" "$net"
+        done
+        printf "\n"
+    fi
 }
 
 __iface_conf_address () {
