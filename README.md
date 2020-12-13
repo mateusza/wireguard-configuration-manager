@@ -24,7 +24,7 @@ Interface configuration is saved to `/etc/wireguard/<IFACE>.conf.d/interface.con
 * `wgconfmgr qr <IFACE> <PEER>`
 
 Note:
-1. Peer's `private.key` is required to generated QR code.
+1. Peer's `private.key` is required to generate QR code.
 2. `qrencode` tool is used (see: [libqrencode](https://fukuchi.org/works/qrencode/))
 3. UTF-8 enabled terminal is required to display QR code.
 
