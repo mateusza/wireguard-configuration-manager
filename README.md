@@ -1,39 +1,44 @@
-# Wireguard Connection Manager
+# Wireguard Configuration Manager
 
 ## Usage
 
-### adding new
+### `new` - adding new interface or peer
 * Adding new interface: `wgconfmgr new <IFACE>`
 * Adding new peer: `wgconfmgr new <IFACE> <PEER>`
 
-### displaying configuration files
+Adding new interface or peer generates required directories and files:
+- `private.key` is automaticaly generated (however it's fine to replace it later)
+- `ip.conf`, `networks.conf` are created empty and need to be manually populated with desired values
+
+### `conf` - displaying configuration files
 * Interface configuration: `wgconfmgr conf <IFACE>`
 * Peer configuration: `wgconfmgr conf <IFACE> <PEER>`
 
-### writing configuration to file
+### `write-conf` - writing configuration to file
 * All interfaces: `wgconfmgr write-conf`
 * Specific interface: `wgconfmgr write-conf <IFACE>`
 
 Interface configuration is saved to `/etc/wireguard/<IFACE>.conf.d/interface.conf`. This can be later copied, rename or symlinked as `/etc/wireguard/<IFACE>.conf`.
 
-### displaying QR code for peer configuration
+### `qr` - displaying QR code for quick peer configuration
 * `wgconfmgr qr <IFACE> <PEER>`
 
 (`qrencode` tools is required)
 
-### testing connection to peers
-* `wgconfmgr ping`
-* `wgconfmgr ping <IFACE>`
-* `wgconfmgr ping <IFACE> <PEER>`
+### `ping` - testing connection to peers
+* `wgconfmgr ping` - ping all peers on all interfaces
+* `wgconfmgr ping <IFACE>` - ping all peers on specific interface
+* `wgconfmgr ping <IFACE> <PEER>` - ping single peer on specific interface (all addresses)
 
 ## Configuration files
 
 ### Interface
-
 Interfaces' configuration directories are named `/etc/wireguard/<IFACE>.conf.d`.
 
 #### `private.key`
-Private key. File should be readable only by root.
+Private key.
+
+File should be readable only by root.
 
 #### `public.key` (optional)
 Public key.
@@ -98,14 +103,13 @@ If the network is not a subnet of interface network, it should also be included 
 DNS-es to by used by peer. Defaults to interface's `dns.conf` or defaults values.
 
 ## Author
-
 * Mateusz Adamowski
 
 ## License
-
 The project is licensed under MIT License.
 
 ## See also
 * [The Wireguard](https://www.wireguard.com/)
 * [Wireguard Vanity Address](https://github.com/warner/wireguard-vanity-address) Tool to generate keypairs with easily recognizable public keys, like `c0ol/adDr/eM/ui8om59pAvR1KgLuhpOV5KC9kWiGGo=`
 * [QR Encode](https://fukuchi.org/works/qrencode/) Tool to generate QR codes from command line, able to display them on text console using UTF-8 block characters. Simplifies provisioning of mobile devices.
+
