@@ -19,11 +19,17 @@ _main () {
         write-conf)
             _write_conf "$@"
             ;;
-        show_conf)
+        conf)
             _show_conf "$@"
             ;;
         qr)
             _show_qr "$@"
+            ;;
+        ping)
+            _ping "$@"
+            ;;
+        new)
+            _new "$@"
             ;;
         __*)
             "$cmd" "$@"
@@ -37,8 +43,8 @@ _usage () {
 
 _list_interfaces () {
     local iface
-    for iface in $( __list_interfaces ); do
-        printf "%s: (%s) %d peers\n" "$iface" "$(__iface_conf_address "$iface")" "$( __iface_count_peers "$iface" )"
+    for iface in $(__list_interfaces); do
+        printf "%s: (%s) %d peers\n" "$iface" "$(__iface_conf_address "$iface")" "$(__iface_count_peers "$iface")"
     done
 }
 
@@ -91,11 +97,108 @@ _show_qr () {
     fi
     if __peer_exists "$iface" "$peer"; then
         printf "[ QR CODE %s %s ]\n" "$iface" "$peer"
-        __peer_remoteconf "$iface" "$peer" | sed -ne 's/#.*//;/^.\+$/p' | qrencode -t UTF8
+        __peer_remoteconf_striped "$iface" "$peer" | qrencode -t UTF8
     else
         printf "Peer not found: %s\n" "$peer"
     fi
 }
+
+_ping () {
+    local iface peer ip result
+    iface="$1"
+    peer="$2"
+    [[ -z "$iface" ]] && ifaces="$(__list_interfaces)" || ifaces="$iface"
+    for iface in $ifaces; do
+        [[ -z "$peer" ]] && peers="$(__list_peers "$iface")" || peers="$peer"
+        for peer in $peers; do
+            printf "%-20s " "$peer:"
+            while read -r ip result; do
+                [[ "x$result" == "xOK" ]] && printf "+" || printf "-"
+                printf " %-30s " "$ip"
+            done < <(__ping_peer "$iface" "$peer" )
+            printf "\n"
+        done
+    done
+}
+
+_new () {
+    local iface peer
+    iface="$1"
+    peer="$2"
+    if [[ -z "$peer" ]]; then
+        _new_iface "$iface"
+    else
+        _new_peer "$iface" "$peer"
+    fi
+}
+
+_new_iface () {
+    local iface iface_dirname conffile
+    iface="$1"
+    if ! __iface_correct_name "$iface"; then
+        printf "Incorrect interface name: %s\n" "$iface"
+        false
+    fi
+    if __iface_exists "$iface"; then
+        printf "Interface already exists: %s\n" "$iface"
+        false
+    fi
+    iface_dirname="$(__iface_dirname "$iface")"
+    mkdir "${iface_dirname}"
+    mkdir "${iface_dirname}/peers.d"
+    for conffile in "$iface_dirname/"{ip,networks,endpoint}.conf; do
+        if ! [[ -e "$conffile" ]]; then
+            > "$conffile"
+        fi
+    done
+    umask 077
+    wg genkey > "${iface_dirname}/private.key"
+}
+
+_new_peer () {
+    local iface peer peer_dirname
+    iface="$1"
+    peer="$2"
+    if ! __iface_exists "$iface"; then
+        printf "Interface not found: %s\n" "$iface"
+        false
+    fi
+    if __peer_exists "$iface" "$peer"; then
+        printf "Peer already exists: %s (%s)\n" "$peer" "$iface"
+        false
+    fi
+    if ! __peer_correct_name "$peer"; then
+        printf "Incorrect peer name: %s\n" "$peer"
+        false
+    fi
+    peer_dirname="$(__peer_dirname "$iface" "$peer")"
+    mkdir "$peer_dirname"
+    for conffile in "$peer_dirname/"{ip,networks}.conf; do
+        if ! [[ -e "$conffile" ]]; then
+            > "$conffile"
+        fi
+    done
+    umask 077
+    wg genkey > "${peer_dirname}/private.key"
+}
+
+# Network monitoring tools
+
+__ping_peer () {
+    local iface peer ips ip result
+    iface="$1"
+    peer="$2"
+    ips="$(__peer_conf_address "$iface" "$peer" )"
+    for ip in $ips; do
+        if ping -c 1 -W 1 "$ip" > /dev/null 2>&1; then
+            result="OK"
+        else
+            result="failed"
+        fi
+        printf "%s %s\n" "$ip" "$result"
+    done
+}
+
 
 # Common functions:
 
@@ -117,6 +220,13 @@ __peer_exists() {
     peer="$2"
     peer_dirname=$(__peer_dirname "$iface" "$peer")
     test -d "$peer_dirname" && test -n "$peer"
+}
+
+__peer_correct_name() {
+    local peer pattern
+    pattern='^[a-zA-Z][-_a-zA-Z0-9]*$'
+    peer="$1"
+    printf "%s" "$peer" | grep -q "$pattern"
 }
 
 __peer_dirname () {
@@ -148,7 +258,7 @@ __peer_conf_allowedips () {
     iface="$1"
     peer="$2"
     ips=""
-    for ip in $( __peer_conf_address "$iface" "$peer" ) $( __peer_conf_networks "$iface" "$peer" ); do
+    for ip in $(__peer_conf_address "$iface" "$peer") $(__peer_conf_networks "$iface" "$peer"); do
         printf -v ips "%s, %s" "$ips" "$ip"
     done
     ips="${ips##, }"
@@ -192,12 +302,13 @@ __peer_conf_dns_ips () {
 }
 
 __peer_conf_privatekey () {
-    local iface peer privkey line
+    local iface peer privkey line filename
     iface="$1"
     peer="$2"
     peer_dirname="$(__peer_dirname "$iface" "$peer")"
-    if [[ -e "${peer_dirname}/private.key" ]]; then
-        read -r privkey < "${peer_dirname}/private.key"
+    filename="${peer_dirname}/private.key"
+    if [[ -e "${filename}" ]]; then
+        read -r privkey < "${filename}"
     else
         privkey="# PRIVATE KEY HERE"
     fi
@@ -205,20 +316,38 @@ __peer_conf_privatekey () {
 }
 
 __peer_conf_publickey () {
-    local iface peer pubkey line
+    local iface peer pubkey privkey filename
     iface="$1"
     peer="$2"
-    read -r pubkey < "$(__peer_dirname "$iface" "$peer")/public.key"
+    filename="$(__peer_dirname "$iface" "$peer")/public.key"
+    if [[ -e "$filename" ]]; then
+        read -r pubkey < "${filename}"
+    else
+        privkey="$(__peer_conf_privatekey "$iface" "$peer")"
+        if [[ "x${privkey:0:1}" == "x#" ]]; then
+            pubkey="# PUBLIC KEY HERE"
+        else
+            pubkey="$(echo "$privkey" | wg pubkey)"
+        fi
+    fi
     printf "%s\n" "$pubkey"
 }
 
 __peer_conf () {
+    local iface peer publickey
+    iface="$1"
+    peer="$2"
+    publickey="$(__peer_conf_publickey "$iface" "$peer")"
+    printf "[Peer] # %s\n" "$peer"
+    printf "%sPublicKey = %s\n" "$([[ "x${publickey:0:1}" == "x#" ]] && echo "# ")" "${publickey}"
+    printf "AllowedIPs = %s\n" "$(__peer_conf_allowedips "$iface" "$peer")"
+}
+
+__peer_remoteconf_striped () {
     local iface peer
     iface="$1"
     peer="$2"
-    printf "[Peer] # %s\n" "$peer"
-    printf "PublicKey = %s\n" "$(__peer_conf_publickey "$iface" "$peer")"
-    printf "AllowedIPs = %s\n" "$(__peer_conf_allowedips "$iface" "$peer")"
+    __peer_remoteconf "$iface" "$peer" | sed -ne 's/#.*//;/^.\+$/p'
 }
 
 __peer_remoteconf () {
@@ -232,8 +361,8 @@ __peer_remoteconf () {
     printf "# PubKey = %s\n" "$(__peer_conf_publickey "$iface" "$peer")"
     printf "\n"
     printf "[Peer] # %s\n" "$HOSTNAME" # FIXME
-    printf "PublicKey = %s\n" "$( __iface_conf_publickey "$iface" )"
-    printf "AllowedIPs = %s\n" "$(__iface_conf_allowedips "$iface" )"
+    printf "PublicKey = %s\n" "$(__iface_conf_publickey "$iface")"
+    printf "AllowedIPs = %s\n" "$(__iface_conf_allowedips "$iface")"
     printf "# AllowedIPs = 0.0.0.0/0, ::/0\n"
     printf "Endpoint = %s:%d\n" "$(__iface_conf_endpoint "$iface")" "$(__iface_conf_listenport "$iface")"
     printf "PersistentKeepalive = %d\n" "60"
@@ -252,8 +381,15 @@ __peer_remoteconf () {
 __iface_exists() {
     local iface iface_dirname
     iface="$1"
-    iface_dirname=$(__iface_dirname "$iface" )
+    iface_dirname=$(__iface_dirname "$iface")
     test -e "$iface_dirname"
+}
+
+__iface_correct_name() {
+    local iface pattern
+    pattern='^[a-zA-Z][-_a-zA-Z0-9]*$'
+    iface="$1"
+    printf "%s" "$iface" | grep -q "$pattern"
 }
 
 __iface_dirname () {
@@ -266,7 +402,7 @@ __iface_count_peers () {
     local iface peer n
     iface="$1"
     n=0
-    for peer in $( __list_peers "$iface" ); do
+    for peer in $(__list_peers "$iface"); do
         n=$(( n + 1 ))
     done
     printf "%d\n" "$n"
@@ -278,22 +414,27 @@ __iface_conf () {
     printf "[Interface] # %s\n" "$iface"
     __iface_conf_local "$iface"
     printf "\n"
+    printf "# Peers:\n"
     __iface_conf_peers "$iface"
     printf "# EOF\n"
 }
 
 __iface_conf_local () {
-    local iface net
+    local iface net networks
     iface="$1"
-    printf "Address = %s\n" "$( __iface_conf_address "$iface" )"
-    printf "ListenPort = %d\n" "$( __iface_conf_listenport "$iface" )"
-    printf "FwMark = %s\n" "$( __iface_conf_fwmark "$iface" )"
-    printf "PrivateKey = %s\n" "$( __iface_conf_privatekey "$iface" )"
-    printf "# PublicKey = %s\n" "$( __iface_conf_publickey "$iface" )"
-    printf "# Local networks:\n"
-    for net in $(__iface_conf_networks "$iface" ); do
-        printf "# - %s\n" "$net"
-    done
+    printf "Address = %s\n" "$(__iface_conf_address "$iface")"
+    printf "ListenPort = %d\n" "$(__iface_conf_listenport "$iface")"
+    printf "FwMark = %s\n" "$(__iface_conf_fwmark "$iface")"
+    printf "PrivateKey = %s\n" "$(__iface_conf_privatekey "$iface")"
+    printf "# PublicKey = %s\n" "$(__iface_conf_publickey "$iface")"
+    networks="$(__iface_conf_networks "$iface" )"
+    if [[ -n "$networks" ]]; then
+        printf "# Local networks:\n"
+        for net in $networks; do
+            printf "# - %s\n" "$net"
+        done
+        printf "\n"
+    fi
 }
 
 __iface_conf_address () {
@@ -316,17 +457,24 @@ __iface_conf_networks () {
 }
 
 __iface_conf_dns_ips () {
-    local iface iface_dirname
+    local iface iface_dirname dns defaults
+    defaults="8.8.8.8 1.1.1.1" #FIXME
     iface="$1"
     iface_dirname="$(__iface_dirname "$iface")"
-    __conf_address_file "${iface_dirname}/dns.conf"
+    if [[ -e "${iface_dirname}/dns.conf" ]]; then
+        __conf_address_file "${iface_dirname}/dns.conf"
+    else
+        for dns in $defaults; do
+            printf "%s\n" "$dns"
+        done
+    fi
 }
 
 __iface_conf_allowedips () {
     local iface ips ip
     iface="$1"
     ips=""
-    for ip in $( __iface_conf_networks "$iface" ); do
+    for ip in $(__iface_conf_networks "$iface"); do
         printf -v ips "%s, %s" "$ips" "$ip"
     done
     ips="${ips##, }"
@@ -386,7 +534,7 @@ __iface_conf_publickey () {
 __iface_conf_peers () {
     local iface peer
     iface="$1"
-    for peer in $( __list_peers "$iface" ); do
+    for peer in $(__list_peers "$iface"); do
         __peer_conf "$iface" "$peer"
         printf "\n"
     done
