@@ -28,6 +28,9 @@ _main () {
         ping)
             _ping "$@"
             ;;
+        new)
+            _new "$@"
+            ;;
         __*)
             "$cmd" "$@"
             ;;
@@ -118,6 +121,67 @@ _ping () {
     done
 }
 
+_new () {
+    local iface peer
+    iface="$1"
+    peer="$2"
+    if [[ -z "$peer" ]]; then
+        _new_iface "$iface"
+    else
+        _new_peer "$iface" "$peer"
+    fi
+}
+
+_new_iface () {
+    local iface iface_dirname conffile
+    iface="$1"
+    if ! __iface_correct_name "$iface"; then
+        printf "Incorrect interface name: %s\n" "$iface"
+        false
+    fi
+    if __iface_exists "$iface"; then
+        printf "Interface already exists: %s\n" "$iface"
+        false
+    fi
+    iface_dirname="$(__iface_dirname "$iface")"
+    mkdir "${iface_dirname}"
+    mkdir "${iface_dirname}/peers.d"
+    for conffile in "$iface_dirname/"{ip,networks,endpoint}.conf; do
+        if ! [[ -e "$conffile" ]]; then
+            > "$conffile"
+        fi
+    done
+    umask 077
+    wg genkey > "${iface_dirname}/private.key"
+}
+
+_new_peer () {
+    local iface peer peer_dirname
+    iface="$1"
+    peer="$2"
+    if ! __iface_exists "$iface"; then
+        printf "Interface not found: %s\n" "$iface"
+        false
+    fi
+    if __peer_exists "$iface" "$peer"; then
+        printf "Peer already exists: %s (%s)\n" "$peer" "$iface"
+        false
+    fi
+    if ! __peer_correct_name "$peer"; then
+        printf "Incorrect peer name: %s\n" "$peer"
+        false
+    fi
+    peer_dirname="$(__peer_dirname "$iface" "$peer")"
+    mkdir "$peer_dirname"
+    for conffile in "$peer_dirname/"{ip,networks}.conf; do
+        if ! [[ -e "$conffile" ]]; then
+            > "$conffile"
+        fi
+    done
+    umask 077
+    wg genkey > "${peer_dirname}/private.key"
+}
+
 # Network monitoring tools
 
 __ping_peer () {
@@ -156,6 +220,13 @@ __peer_exists() {
     peer="$2"
     peer_dirname=$(__peer_dirname "$iface" "$peer")
     test -d "$peer_dirname" && test -n "$peer"
+}
+
+__peer_correct_name() {
+    local peer pattern
+    pattern='^[a-zA-Z][-_a-zA-Z0-9]*$'
+    peer="$1"
+    printf "%s" "$peer" | grep -q "$pattern"
 }
 
 __peer_dirname () {
@@ -305,6 +376,13 @@ __iface_exists() {
     iface="$1"
     iface_dirname=$(__iface_dirname "$iface")
     test -e "$iface_dirname"
+}
+
+__iface_correct_name() {
+    local iface pattern
+    pattern='^[a-zA-Z][-_a-zA-Z0-9]*$'
+    iface="$1"
+    printf "%s" "$iface" | grep -q "$pattern"
 }
 
 __iface_dirname () {
