@@ -2,30 +2,30 @@
 
 ## Usage
 
-### `new` - adding new interface or peer
-* Adding new interface: `wgconfmgr new <IFACE>`
-* Adding new peer: `wgconfmgr new <IFACE> <PEER>`
+### `new` - add new interface or peer
+* To add new interface: `wgconfmgr new <IFACE>`
+* To add new peer: `wgconfmgr new <IFACE> <PEER>`
 
-Adding new interface or peer generates required directories and files:
-- `private.key` is automaticaly generated (however it's fine to replace it later)
+Adding new interface or peer creates required directories and files:
+- `private.key` is automaticaly generated (however it's OK to replace it later)
 - `ip.conf`, `networks.conf` are created empty and need to be manually populated with desired values
 
-### `conf` - displaying configuration files
+### `conf` - display configuration file
 * Interface configuration: `wgconfmgr conf <IFACE>`
 * Peer configuration: `wgconfmgr conf <IFACE> <PEER>`
 
-### `write-conf` - writing configuration to file
+### `write-conf` - write configuration to a file
 * All interfaces: `wgconfmgr write-conf`
 * Specific interface: `wgconfmgr write-conf <IFACE>`
 
 Interface configuration is saved to `/etc/wireguard/<IFACE>.conf.d/interface.conf`. This can be later copied, rename or symlinked as `/etc/wireguard/<IFACE>.conf`.
 
-### `qr` - displaying QR code for quick peer configuration
+### `qr` - display QR code for quick peer configuration
 * `wgconfmgr qr <IFACE> <PEER>`
 
-(`qrencode` tools is required)
+(`qrencode` tools is used. UTF-8 enabled terminal is required.)
 
-### `ping` - testing connection to peers
+### `ping` - test connection
 * `wgconfmgr ping` - ping all peers on all interfaces
 * `wgconfmgr ping <IFACE>` - ping all peers on specific interface
 * `wgconfmgr ping <IFACE> <PEER>` - ping single peer on specific interface (all addresses)
@@ -87,20 +87,20 @@ Only required for full configuration file generation on a server, including QR c
 #### `public.key` (conditionally optional)
 Public key. Optional, if `private.key` is provided.
 
-**At least one of `private.key` or `public.key` must be provided.**
+**At least one of `private.key` and `public.key` must be present.**
 
-**The tool doesn't verify if `public.key` matches `private.key` when both are provided.**
+**The tool doesn't verify if `public.key` matches `private.key` when both are present.**
 
 #### `ip.conf`
 IPv4 or IPv6 addresses. One per line.
 
 #### `networks.conf` (optional)
-IPv4 or IPv6 networks that are connected to peer. One per line.
+IPv4 or IPv6 networks connected to peer. One per line.
 
-If the network is not a subnet of interface network, it should also be included in interface's `network.conf` file.
+If the network is not a subnet of interface network, it should also be referenced in interface's `network.conf` file.
 
 #### `dns.conf` (optional)
-DNS-es to by used by peer. Defaults to interface's `dns.conf` or defaults values.
+DNS-es to by used by peer. Defaults to interface's `dns.conf` or default values.
 
 ## Author
 * Mateusz Adamowski
