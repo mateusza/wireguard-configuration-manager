@@ -104,20 +104,22 @@ _show_qr () {
 }
 
 _ping () {
-    local iface peer ip result
+    local iface peer ip result pubkey
     iface="$1"
     peer="$2"
     [[ -z "$iface" ]] && ifaces="$(__list_interfaces)" || ifaces="$iface"
     for iface in $ifaces; do
         [[ -z "$peer" ]] && peers="$(__list_peers "$iface")" || peers="$peer"
         for peer in $peers; do
-            printf "%-20s " "$peer:"
+            pubkey="$(__peer_conf_publickey "$iface" "$peer" )"
+            printf "%-20s  %s...:  " "$peer" "${pubkey:0:8}"
             while read -r ip result; do
                 [[ "x$result" == "xOK" ]] && printf "+" || printf "-"
                 printf " %-30s " "$ip"
             done < <(__ping_peer "$iface" "$peer" )
             printf "\n"
         done
+        peer=""
     done
 }
 
