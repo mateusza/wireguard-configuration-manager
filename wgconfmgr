@@ -31,8 +31,14 @@ _main () {
         new)
             _new "$@"
             ;;
+        reload)
+            _reload "$@"
+            ;;
         __*)
             "$cmd" "$@"
+            ;;
+        *)
+            echo "Unknown command: $cmd"
             ;;
     esac
 }
@@ -45,6 +51,18 @@ _list_interfaces () {
     local iface
     for iface in $(__list_interfaces); do
         printf "%s: (%s) %d peers\n" "$iface" "$(__iface_conf_address "$iface")" "$(__iface_count_peers "$iface")"
+    done
+}
+
+_reload () {
+    local iface iface2 iface_dir
+    iface2="$1"
+
+    for iface in $(__list_interfaces); do
+        echo "Interface: $iface"
+        [[ -n "$iface2" && "$iface" != "$iface2" ]] && continue
+        __iface_reload "$iface"
+        echo "Reloaded."
     done
 }
 
@@ -63,7 +81,6 @@ _write_conf () {
         } > "$iface_dir/interface.conf"
         echo "Saved."
     done
-
 }
 
 _show_conf () {
@@ -398,6 +415,12 @@ __iface_dirname () {
     local iface
     iface="$1"
     printf "%s/%s.conf.d\n" "$WG_DIR" "$iface"
+}
+
+__iface_reload () {
+    local iface
+    iface="$1"
+    wg addconf "$iface" <( wg-quick strip "$iface" )
 }
 
 __iface_count_peers () {
