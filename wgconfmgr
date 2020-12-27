@@ -23,6 +23,8 @@ _main () {
             _show_conf "$@"
             ;;
         qr)
+            ;&
+        qrcode)
             _show_qr "$@"
             ;;
         ping)
