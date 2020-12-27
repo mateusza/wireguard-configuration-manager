@@ -23,7 +23,12 @@ _main () {
             _show_conf "$@"
             ;;
         qr)
+            ;&
+        qrcode)
             _show_qr "$@"
+            ;;
+        openwrt)
+            __peer_remoteconf_openwrt "$@"
             ;;
         ping)
             _ping "$@"
@@ -393,6 +398,30 @@ __peer_remoteconf () {
             printf "# - %s\n" "$n"
         done
     fi
+}
+
+__peer_remoteconf_openwrt () {
+    local iface peer networks n riface ip
+    iface="$1"
+    peer="$2"
+    riface="wg0" #TODO
+
+    printf "config interface %s\n" "$riface"
+    printf "\toption proto wireguard\n"
+    printf "\toption private_key '%s'\n" "$(__peer_conf_privatekey "$iface" "$peer")"
+    for ip in $(__peer_conf_address "$iface" "$peer" ); do
+        printf "\tlist addresses '%s' # add prefix length manually\n" "$ip"
+    done
+    printf "\n"
+    printf "config wireguard_%s '%s'\n" "$riface" "$HOSTNAME" # FIXME
+    printf "\toption public_key '%s'\n" "$(__iface_conf_publickey "$iface")"
+    printf "\toption endpoint_host '%s'\n" "$(__iface_conf_endpoint "$iface")"
+    printf "\toption endpoint_port %d\n" "$(__iface_conf_listenport "$iface")"
+    printf "\toption route_allowed_ips '1'\n"
+    printf "\toption persistent_keepalive %d\n" "60"
+    for ip in $(__iface_conf_networks "$iface"); do
+        printf "\tlist allowed_ips '%s'\n" "$ip"
+    done
 }
 
 # Interface related functions
