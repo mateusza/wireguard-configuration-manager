@@ -134,7 +134,7 @@ _ping () {
         [[ -z "$peer" ]] && peers="$(__list_peers "$iface")" || peers="$peer"
         for peer in $peers; do
             pubkey="$(__peer_conf_publickey "$iface" "$peer" )"
-            printf "%-20s  %s...:  " "$peer" "${pubkey:0:8}"
+            printf "%-20s  %s...:  " "$peer" "${pubkey:0:10}"
             while read -r ip result; do
                 [[ "x$result" == "xOK" ]] && printf "+" || printf "-"
                 printf " %-30s " "$ip"
@@ -481,6 +481,25 @@ __iface_conf_local () {
     printf "FwMark = %s\n" "$(__iface_conf_fwmark "$iface")"
     printf "PrivateKey = %s\n" "$(__iface_conf_privatekey "$iface")"
     printf "# PublicKey = %s\n" "$(__iface_conf_publickey "$iface")"
+
+    for net in $(__iface_conf_networks "$iface" | __filter_ipv 4); do
+        printf "PostUp = iptables -A FORWARD -i %s -j ACCEPT\n" "$iface"
+        printf "PostUp = iptables -A FORWARD -o %s -j ACCEPT\n" "$iface"
+        printf "PostUp = iptables -t nat -A POSTROUTING -s %s -j MASQUERADE\n" "$net"
+        printf "PostDown = iptables -D FORWARD -i %s -j ACCEPT\n" "$iface"
+        printf "PostDown = iptables -D FORWARD -o %s -j ACCEPT\n" "$iface"
+        printf "PostDown = iptables -t nat -D POSTROUTING -s %s -j MASQUERADE\n" "$net"
+    done
+
+    for net in $(__iface_conf_networks "$iface" | __filter_ipv 6); do
+        printf "PostUp = ip6tables -A FORWARD -i %s -j ACCEPT\n" "$iface"
+        printf "PostUp = ip6tables -A FORWARD -o %s -j ACCEPT\n" "$iface"
+        printf "PostUp = ip6tables -t nat -A POSTROUTING -s %s -j MASQUERADE\n" "$net"
+        printf "PostDown = ip6tables -D FORWARD -i %s -j ACCEPT\n" "$iface"
+        printf "PostDown = ip6tables -D FORWARD -o %s -j ACCEPT\n" "$iface"
+        printf "PostDown = ip6tables -t nat -D POSTROUTING -s %s -j MASQUERADE\n" "$net"
+    done
+
     networks="$(__iface_conf_networks "$iface" )"
     if [[ -n "$networks" ]]; then
         printf "# Local networks:\n"
@@ -627,6 +646,16 @@ __list_connections () {
             __peer_exists "$iface" "$peer" || break
             printf "%s %s\n" "$iface" "$peer"
         done
+    done
+}
+
+__filter_ipv () {
+    local version addr
+    version="$1"
+
+    while read addr; do
+        [[ "$version" -eq 4 && "$addr" =~ ^[0-9]{1,3}\.[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}(/.*)?$ ]] && printf "%s\n" "$addr" && continue
+        [[ "$version" -eq 6 && "$addr" =~ ':' ]] && printf "%s\n" "$addr" && continue
     done
 }
 
