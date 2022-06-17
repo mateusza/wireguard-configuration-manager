@@ -39,6 +39,9 @@ _main () {
         reload)
             _reload "$@"
             ;;
+        systemd)
+            _systemd "$@"
+            ;;
         __*)
             "$cmd" "$@"
             ;;
@@ -69,6 +72,18 @@ _reload () {
         __iface_reload "$iface"
         echo "Reloaded."
     done
+}
+
+_systemd () {
+    local iface peer
+    iface="$1"
+    peer="$2"
+    echo "-----BEGIN NETDEV-----"
+    __peer_remoteconf_systemd_netdev "$iface" "$peer"
+    echo "-----END NETDEV-----"
+    echo "-----BEGIN NETWORK-----"
+    __peer_remoteconf_systemd_network "$iface" "$peer"
+    echo "-----END NETWORK-----"
 }
 
 _write_conf () {
@@ -421,6 +436,41 @@ __peer_remoteconf_openwrt () {
     printf "\toption persistent_keepalive %d\n" "60"
     for ip in $(__iface_conf_networks "$iface"); do
         printf "\tlist allowed_ips '%s'\n" "$ip"
+    done
+}
+
+__peer_remoteconf_systemd_netdev () {
+    local iface peer networks n allowedip
+    iface="$1"
+    peer="$2"
+    printf "[NetDev]\n"
+    printf "Name = wg0\n"
+    printf "Kind = wireguard\n"
+    printf "Description = Wireguard connection to %s:%d\n" "$(__iface_conf_endpoint "$iface")" "$(__iface_conf_listenport "$iface")"
+    printf "\n"
+    printf "[WireGuard]\n"
+    printf "PrivateKey = %s\n" "$(__peer_conf_privatekey "$iface" "$peer")"
+    printf "\n"
+    printf "[WireGuardPeer]\n"
+    printf "PublicKey = %s\n" "$(__iface_conf_publickey "$iface")"
+    for allowedip in $(__iface_conf_networks "$iface")
+    do
+        printf "AllowedIPs = %s\n" "$allowedip"
+    done
+    printf "Endpoint = %s:%d\n" "$(__iface_conf_endpoint "$iface")" "$(__iface_conf_listenport "$iface")"
+    printf "PersistentKeepalive = %d\n" "60"
+}
+__peer_remoteconf_systemd_network () {
+    local iface peer networks n ip
+    iface="$1"
+    peer="$2"
+    printf "[Match]\n"
+    printf "name = wg0\n"
+    printf "\n"
+    printf "[Network]\n"
+    for ip in $(__peer_conf_address "$iface" "$peer")
+    do
+        printf "Address = %s\n" "$ip"
     done
 }
 
