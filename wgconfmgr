@@ -421,6 +421,7 @@ __peer_remoteconf_openwrt () {
     peer="$2"
     riface="wg0" #TODO
 
+    printf "# file: /etc/config/network\n\n"
     printf "config interface %s\n" "$riface"
     printf "\toption proto wireguard\n"
     printf "\toption private_key '%s'\n" "$(__peer_conf_privatekey "$iface" "$peer")"
